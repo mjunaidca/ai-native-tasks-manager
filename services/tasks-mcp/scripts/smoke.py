@@ -137,9 +137,7 @@ async def main() -> int:
 
             # 5. Review default user does not see alice
             rev = _payload(
-                await session.call_tool(
-                    "review_tasks", {"params": {"filter": "open"}}
-                )
+                await session.call_tool("review_tasks", {"params": {"filter": "open"}})
             )
             ids = {x["id"] for x in rev["items"]}
             if t1 in ids and t_alice not in ids:
@@ -277,7 +275,10 @@ async def main() -> int:
                 and mod2["description"] is None
                 and mod_missing.get("error", {}).get("code") == "not_found"
             ):
-                _ok("8 modify", "title changed; null cleared description; missing→not_found")
+                _ok(
+                    "8 modify",
+                    "title changed; null cleared description; missing→not_found",
+                )
             else:
                 _fail("8 modify", f"{mod} / {mod2} / {mod_missing}")
 
@@ -319,10 +320,7 @@ async def main() -> int:
                 )
             )
             err = res3.get("error", {})
-            if (
-                err.get("code") == "invalid_state_transition"
-                and err.get("suggestion")
-            ):
+            if err.get("code") == "invalid_state_transition" and err.get("suggestion"):
                 _ok("11 resolve_conflict", err["code"])
             else:
                 _fail("11 resolve_conflict", str(res3))
@@ -341,9 +339,7 @@ async def main() -> int:
 
             # 13. Cross-user remove
             xrm = _payload(
-                await session.call_tool(
-                    "remove_task", {"params": {"id": t_alice}}
-                )
+                await session.call_tool("remove_task", {"params": {"id": t_alice}})
             )
             # Idempotent contract: returns removed=true silently. Alice's task
             # must still exist when she queries.
@@ -354,10 +350,7 @@ async def main() -> int:
                 )
             )
             still_alice = any(x["id"] == t_alice for x in alice_open["items"])
-            if (
-                xrm.get("removed") is True
-                and still_alice
-            ):
+            if xrm.get("removed") is True and still_alice:
                 _ok(
                     "13 cross_user_remove",
                     "default-user got removed=true, alice's task still present for alice",
