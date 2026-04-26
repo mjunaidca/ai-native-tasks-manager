@@ -232,9 +232,28 @@ the standard error envelope.
 
 ---
 
-## Error Envelope
+## Errors
 
-All tools return errors in a single shape:
+Errors come back in one of two shapes depending on **where** the error
+arises. Both are valid; agents should be prepared to handle either.
+
+### 1. Schema validation errors (input-level)
+
+If a tool input fails the declared schema — wrong type, missing required
+field, value outside the documented constraints (e.g. a `due_at` that
+isn't UTC with a `Z` suffix) — the MCP runtime surfaces it as a standard
+**MCP tool error** (`isError: true`) with a Pydantic-formatted message
+naming the offending field and the violated constraint.
+
+The server does **not** wrap these in the custom envelope below. The
+runtime message is already actionable and identifies the field; wrapping
+it would only add noise.
+
+### 2. Semantic errors (tool-body)
+
+Errors that depend on server state — the resource doesn't exist, the
+state machine forbids the transition, the caller doesn't own the
+resource — are raised by the tool body and returned in this shape:
 
 ```jsonc
 {
@@ -245,6 +264,10 @@ All tools return errors in a single shape:
   }
 }
 ```
+
+`invalid_argument` appears here only when the tool body itself rejects an
+input (e.g. a defense-in-depth check that runs after schema validation),
+not for plain schema mismatches.
 
 Example:
 
@@ -257,6 +280,16 @@ Example:
   }
 }
 ```
+
+### Per-tool error sources
+
+| Tool | Schema errors | Semantic errors |
+|---|---|---|
+| `capture_task` | missing `title`, naive/non-UTC `due_at`, length violations | — |
+| `review_tasks` | unknown `filter`, bad `tz`, malformed `cursor`, limit out of range | — |
+| `modify_task` | naive/non-UTC `due_at`, length violations, no fields provided | `not_found` |
+| `resolve_task` | unknown `outcome`, note too long | `not_found`, `invalid_state_transition` |
+| `remove_task` | — | — *(idempotent; cross-user returns `{removed: true}` to avoid existence disclosure)* |
 
 ---
 
