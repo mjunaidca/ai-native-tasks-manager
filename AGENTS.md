@@ -49,6 +49,19 @@ schemas do not belong in this file.
 
 ---
 
+## Tech Stack Defaults
+
+These are the defaults for any new service, agent, or tool in this repo.
+Deviating requires a clear operational reason.
+
+* **Preferred programming language:** Python 3.12+.
+* **Package and environment manager:** [`uv`](https://docs.astral.sh/uv/).
+  Use `uv` for dependency resolution, virtual environments, lockfiles, and
+  running scripts. Do not mix `pip`, `poetry`, or `conda` into the same
+  service unless there is a documented reason.
+
+---
+
 ## Engineering Principles
 
 * Work test-first by default. Start with a failing test that captures the
