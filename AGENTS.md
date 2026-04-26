@@ -174,6 +174,111 @@ Cross-boundary changes require coordination with the owning area.
 
 ---
 
+## Always Verify
+
+Verification is not a final step — it is part of doing the work.
+
+* Always verify what you are doing. Before declaring something done, prove it
+  works: run the test, hit the endpoint, read the file back, check the log,
+  inspect the diff.
+* Trust nothing by default — not your own memory, not a plausible-looking
+  output, not "it should work." Confirm against the real system.
+* When you change behavior, verify both the happy path and at least one
+  failure or edge case.
+* If you cannot verify something locally, say so explicitly instead of
+  implying success.
+* Treat unverified claims the same as bugs.
+
+---
+
+## Working Practices for Agents and Humans
+
+These practices are adapted from the Panaversity Agent Factory creator
+workflow and apply to anyone — human or AI — building in this repo.
+
+### Plan before executing
+
+* For any non-trivial change, produce a written plan first. Iterate on the
+  plan until it is solid before touching code.
+* When execution starts going wrong, stop and re-plan instead of pushing
+  through.
+* Invite "poke holes in this plan" style review before committing to an
+  approach. A second pass with fresh eyes catches blind spots the original
+  author missed.
+
+### Manage context as a scarce resource
+
+* Treat the context window as the limiting resource. Keep sessions focused
+  on one task at a time.
+* Reset context between unrelated tasks rather than letting one session
+  accumulate noise.
+* Delegate bounded investigations (large searches, repo-wide audits) to
+  subagents so the main context stays clean.
+* If a task is going in circles after two failed corrections, stop and
+  restart with a clearer prompt rather than spiraling.
+
+### Use parallel workstreams
+
+* Use git worktrees or separate directories when working on independent
+  changes in parallel, so contexts do not bleed into each other.
+* Keep each workstream's history isolated and recoverable.
+
+### Reduce ambiguity in prompts and briefs
+
+* Give the problem, the constraints, the audience, and the success criteria
+  — not a pre-baked solution.
+* Prefer detailed briefs over terse one-liners for anything non-trivial.
+* Ask clarifying questions when intent is ambiguous; do not guess.
+
+### Build verification loops
+
+* Give agents tools to check their own work: tests, type checks, linters,
+  health checks, MCP tools, hooks, or browser automation as appropriate.
+* Prefer automated checks over manual inspection where possible.
+* Use a Claude-reviews-Claude (or human-reviews-agent) pattern for important
+  changes: a fresh reviewer is better than the original author at catching
+  blind spots.
+
+### Treat documentation as living infrastructure
+
+* When a mistake is discovered, update this file (or the relevant doc) so it
+  is not repeated. Lessons learned become permanent institutional memory.
+* Prune ruthlessly. Delete rules the codebase already enforces. Keep this
+  file lean enough that people actually read it.
+* Capture important assumptions about SDKs, frameworks, or platforms in
+  code comments, tests, or PR notes when they affect behavior.
+
+### Automate repeated workflows
+
+* If a workflow is done more than once, turn it into a script, hook, skill,
+  or CI check.
+* Pre-allow safe commands (builds, tests, type checks, formatters) in
+  project settings rather than skipping safety checks.
+* Use post-write hooks for formatting and lint fixes so they are never
+  forgotten.
+
+### Choose models and tools deliberately
+
+* Prefer the more capable model with thinking enabled when correctness
+  matters. A correct slow answer beats a wrong fast answer that needs
+  rework.
+* Keep a portable, version-controlled set of skills, settings, and hooks so
+  the team shares the same working environment.
+
+### Avoid common pitfalls
+
+* **Kitchen-sink sessions**: do not pile unrelated questions into one
+  context. Reset between tasks.
+* **Correction spirals**: more than two failed corrections means the
+  approach is muddled — stop and re-plan.
+* **Bloated docs**: do not add a rule that the code, a test, or a schema
+  already enforces.
+* **Trust-then-verify gap**: plausible output is not verified output. Edge
+  cases are not optional.
+* **Infinite exploration**: scope investigations narrowly or delegate them.
+
+---
+
 ## Final Principle
 
 Keep this file minimal, explicit, and operational.
