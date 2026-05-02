@@ -118,6 +118,18 @@ When a bug is fixed, add a regression test unless the cost is clearly unjustifie
 
 ---
 
+## Deployment Conventions
+
+* **Container image registry:** GitHub Container Registry (`ghcr.io`). Images
+  are public for now because the repository is public.
+* **Kubernetes manifests and Helm charts:** live under `deployments/` at the
+  repository root. Do not scatter manifests or charts inside individual service
+  directories.
+* **Dockerfiles:** live at the root of each service or project directory. For
+  example, the Tasks MCP server's Dockerfile is `services/tasks-mcp/Dockerfile`.
+
+---
+
 ## Kubernetes From The Start
 
 The final system is expected to run on Kubernetes. Development decisions should
