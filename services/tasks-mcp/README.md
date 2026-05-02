@@ -23,6 +23,21 @@ uv sync
 uv run tasks-mcp                # 0.0.0.0:8000/mcp by default
 ```
 
+Or via the published container image:
+
+```bash
+docker run --rm -p 8000:8000 \
+  ghcr.io/mjunaidca/ai-native-tasks-manager/tasks-mcp:latest
+```
+
+Tags published by CI:
+
+| Tag | When pushed |
+|---|---|
+| `latest` | every push to `main` |
+| `<short-sha>` | every push to `main` |
+| `<semver>` (e.g. `0.1.0`) | when a `tasks-mcp-vX.Y.Z` git tag is pushed |
+
 Configuration via env vars:
 
 | Var | Default |
