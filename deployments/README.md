@@ -18,9 +18,10 @@ deployments/
     deployment.yaml     # replicas:1, strategy:Recreate (in-memory store)
     service.yaml        # ClusterIP, name=tasks-mcp, port 8000
   tasks-agent/
-    configmap.yaml      # provider, model names, TASKS_MCP_URL
-    deployment.yaml     # replicas:1, sleep entrypoint, /tmp emptyDir
-    secret.example.yaml # template only — DO NOT commit real values
+    configmap.yaml           # provider, model names, TASKS_MCP_URL
+    deployment.yaml          # replicas:1, FastAPI via uvicorn, /tmp emptyDir, /healthz probes
+    service.yaml             # ClusterIP, name=tasks-agent, port 8000
+    secret.example.yaml.tmpl # template only — DO NOT commit real values
 ```
 
 Per `AGENTS.md`, manifests live under `deployments/` rather than inside each
@@ -70,7 +71,7 @@ kubectl create secret generic tasks-agent-secrets \
 ```
 
 Both secrets are applied **imperatively** and are never committed.
-`tasks-agent/secret.example.yaml` is a template only and shows the expected
+`tasks-agent/secret.example.yaml.tmpl` is a template only and shows the expected
 key names. Migration to sealed-secrets / SOPS is tracked in issue #3.
 
 ---
@@ -85,8 +86,12 @@ agent's first MCP call will fail.
 kubectl apply -f deployments/tasks-mcp/ -n tasks-manager
 kubectl rollout status deploy/tasks-mcp -n tasks-manager
 
-# Tasks Manager Agent
+# Tasks Manager Agent. Note the explicit file list — applying the whole
+# directory would also try to apply secret.example.yaml.tmpl semantics
+# is fine because the file uses a non-yaml extension, but listing the
+# files explicitly makes the intent obvious.
 kubectl apply -f deployments/tasks-agent/configmap.yaml \
+              -f deployments/tasks-agent/service.yaml \
               -f deployments/tasks-agent/deployment.yaml \
               -n tasks-manager
 kubectl rollout status deploy/tasks-agent -n tasks-manager
@@ -118,27 +123,39 @@ behaviour.
 
 ### Tasks Agent (end-to-end)
 
-The v1 agent is a CLI. The Deployment runs `sleep infinity` and you drive
-sessions via `kubectl exec`. This will be replaced when issue #4 lands a
-FastAPI HTTP surface.
+The Deployment runs the FastAPI surface (`tasks_agent.api:app`) under
+uvicorn on port 8000. Probes hit `GET /healthz`. The chat endpoint is
+`POST /chat` with body `{"message": "...", "session_id": "..."}` —
+sessions persist in-process under `SQLiteSession`, so the same
+`session_id` keeps memory across calls.
 
 ```bash
-# Interactive session (default provider: gemini)
-kubectl exec -it deploy/tasks-agent -n tasks-manager -- tasks-agent
+# Pod healthy
+kubectl get pods -n tasks-manager -l app=tasks-agent
+kubectl logs deploy/tasks-agent -n tasks-manager --tail=20
 
-# Override the provider for a single session
-kubectl exec -it deploy/tasks-agent -n tasks-manager -- \
-  env TASKS_AGENT_PROVIDER=openai tasks-agent
+# Smoke from your laptop via port-forward
+kubectl port-forward svc/tasks-agent 18080:8000 -n tasks-manager &
 
-# Non-interactive smoke (capture + list)
-printf 'capture: buy milk on 2026-05-04T17:00:00Z\nlist my tasks\n' | \
-  kubectl exec -i deploy/tasks-agent -n tasks-manager -- tasks-agent
+curl -s http://127.0.0.1:18080/healthz
+# {"status":"ok"}
+
+curl -s -X POST http://127.0.0.1:18080/chat \
+  -H 'content-type: application/json' \
+  -d '{"message":"capture: buy milk on 2026-05-04T17:00:00Z","session_id":"smoke"}'
+
+curl -s -X POST http://127.0.0.1:18080/chat \
+  -H 'content-type: application/json' \
+  -d '{"message":"list my pending tasks","session_id":"smoke"}'
 ```
 
 Expected behaviour:
-- The agent connects to MCP and reports `Tasks Manager Agent ready ...`.
-- It refuses to guess timezones — supply ISO-8601 UTC (`...Z`) datetimes.
-- Capture / list / modify / resolve / remove flows round-trip through MCP.
+- The agent refuses to guess timezones — supply ISO-8601 UTC
+  (`...Z`) datetimes.
+- Capture / list / modify / resolve / remove flows round-trip through
+  MCP.
+- `session_id` controls memory boundaries; reuse it across calls to
+  keep context.
 
 ---
 
@@ -185,13 +202,16 @@ Expected behaviour:
   with `readOnlyRootFilesystem: true` and all capabilities dropped. The
   agent mounts an `emptyDir` at `/tmp` because the OpenAI Agents SDK
   writes a sandbox there at startup.
-- **No probes (yet).** Neither service exposes a `/healthz` or `/readyz`
-  endpoint today. Tracked in issue #1.
-- **No ServiceAccount / RBAC / NetworkPolicy.** Dev cluster only. Tracked
-  in issue #2.
-- **Agent runs `sleep infinity`.** The CLI has no HTTP surface yet, so
-  the Deployment shape is a placeholder driven via `kubectl exec`.
-  Replaced in issue #4.
+- **MCP probes pending.** `tasks-mcp` still has no `/healthz` or
+  `/readyz` endpoint, so its Deployment runs without probes. The agent
+  has `/healthz` and uses it for both liveness and readiness; a
+  separate `/readyz` is tracked in issue #1.
+- **No ServiceAccount / RBAC / NetworkPolicy.** Dev cluster only.
+  Tracked in issue #2.
+- **Agent entrypoint override.** The image's default `ENTRYPOINT` is
+  the CLI (`tasks-agent`); the Deployment overrides it with
+  `uvicorn tasks_agent.api:app` so the FastAPI surface starts.
+  Folding this back into the Dockerfile is tracked in issue #4.
 
 ---
 

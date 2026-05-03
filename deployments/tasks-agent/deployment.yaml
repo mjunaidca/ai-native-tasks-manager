@@ -27,17 +27,35 @@ spec:
         - name: tasks-agent
           image: ghcr.io/mjunaidca/ai-native-tasks-manager/tasks-agent:latest
           imagePullPolicy: Always
-          # v1 is a CLI. Keep the pod alive with sleep and drive sessions via:
-          #   kubectl exec -it deploy/tasks-agent -n tasks-manager -- tasks-agent
-          # Swap this command for the FastAPI entrypoint when that surface lands.
-          command: ["/bin/sh", "-c", "sleep infinity"]
-          stdin: true
-          tty: true
+          # The image's default ENTRYPOINT is the CLI (`tasks-agent`).
+          # Override with uvicorn to launch the FastAPI surface defined
+          # in tasks_agent.api:app. uvicorn ships via fastapi[standard].
+          command: ["uvicorn"]
+          args:
+            - "tasks_agent.api:app"
+            - "--host=0.0.0.0"
+            - "--port=8000"
+          ports:
+            - name: http
+              containerPort: 8000
+              protocol: TCP
           envFrom:
             - configMapRef:
                 name: tasks-agent-config
             - secretRef:
                 name: tasks-agent-secrets
+          livenessProbe:
+            httpGet:
+              path: /healthz
+              port: http
+            initialDelaySeconds: 10
+            periodSeconds: 20
+          readinessProbe:
+            httpGet:
+              path: /healthz
+              port: http
+            initialDelaySeconds: 5
+            periodSeconds: 10
           resources:
             requests:
               cpu: "50m"
