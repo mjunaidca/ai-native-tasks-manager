@@ -1,0 +1,16 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: tasks-mcp
+  namespace: tasks-manager
+  labels:
+    app: tasks-mcp
+spec:
+  type: ClusterIP
+  selector:
+    app: tasks-mcp
+  ports:
+    - name: http
+      protocol: TCP
+      port: 8000
+      targetPort: 8000

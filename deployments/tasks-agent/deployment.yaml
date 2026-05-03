@@ -1,0 +1,60 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: tasks-agent
+  namespace: tasks-manager
+  labels:
+    app: tasks-agent
+    version: "1dc5040"
+spec:
+  replicas: 1
+  strategy:
+    type: Recreate
+  selector:
+    matchLabels:
+      app: tasks-agent
+  template:
+    metadata:
+      labels:
+        app: tasks-agent
+        version: "1dc5040"
+    spec:
+      imagePullSecrets:
+        - name: ghcr-pull
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 1000
+        fsGroup: 2000
+      containers:
+        - name: tasks-agent
+          image: ghcr.io/mjunaidca/ai-native-tasks-manager/tasks-agent:1dc5040
+          imagePullPolicy: IfNotPresent
+          # v1 is a CLI. Keep the pod alive with sleep and drive sessions via:
+          #   kubectl exec -it deploy/tasks-agent -n tasks-manager -- tasks-agent
+          # Swap this command for the FastAPI entrypoint when that surface lands.
+          command: ["/bin/sh", "-c", "sleep infinity"]
+          stdin: true
+          tty: true
+          envFrom:
+            - configMapRef:
+                name: tasks-agent-config
+            - secretRef:
+                name: tasks-agent-secrets
+          resources:
+            requests:
+              cpu: "50m"
+              memory: "128Mi"
+            limits:
+              cpu: "500m"
+              memory: "512Mi"
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities:
+              drop: ["ALL"]
+          volumeMounts:
+            - name: tmp
+              mountPath: /tmp
+      volumes:
+        - name: tmp
+          emptyDir: {}
