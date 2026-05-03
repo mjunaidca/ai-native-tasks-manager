@@ -20,7 +20,7 @@ deployments/
   tasks-agent/
     configmap.yaml           # provider, model names, TASKS_MCP_URL
     deployment.yaml          # replicas:1, FastAPI via uvicorn, /tmp emptyDir, /healthz probes
-    service.yaml             # ClusterIP, name=tasks-agent, port 8000
+    service.yaml             # NodePort, name=tasks-agent, port 8000 → nodePort 30080
     secret.example.yaml.tmpl # template only — DO NOT commit real values
 ```
 
@@ -86,10 +86,10 @@ agent's first MCP call will fail.
 kubectl apply -f deployments/tasks-mcp/ -n tasks-manager
 kubectl rollout status deploy/tasks-mcp -n tasks-manager
 
-# Tasks Manager Agent. Note the explicit file list — applying the whole
-# directory would also try to apply secret.example.yaml.tmpl semantics
-# is fine because the file uses a non-yaml extension, but listing the
-# files explicitly makes the intent obvious.
+# Tasks Manager Agent. List the files explicitly so the .tmpl secret
+# template is never applied as a real Secret (we got bitten by this
+# once — applying the whole directory clobbered the live LLM keys
+# with REPLACE_ME placeholders).
 kubectl apply -f deployments/tasks-agent/configmap.yaml \
               -f deployments/tasks-agent/service.yaml \
               -f deployments/tasks-agent/deployment.yaml \
@@ -123,31 +123,42 @@ behaviour.
 
 ### Tasks Agent (end-to-end)
 
-The Deployment runs the FastAPI surface (`tasks_agent.api:app`) under
-uvicorn on port 8000. Probes hit `GET /healthz`. The chat endpoint is
+The image's `ENTRYPOINT` is `uvicorn tasks_agent.api:app --host
+0.0.0.0 --port 8000`, so the FastAPI surface boots by default — no
+manifest override. Probes hit `GET /healthz`. The chat endpoint is
 `POST /chat` with body `{"message": "...", "session_id": "..."}` —
 sessions persist in-process under `SQLiteSession`, so the same
 `session_id` keeps memory across calls.
+
+The Service is exposed as `NodePort: 30080` for dev convenience, so
+you can hit the agent directly from any host that can reach the node
+— no `kubectl port-forward` needed.
 
 ```bash
 # Pod healthy
 kubectl get pods -n tasks-manager -l app=tasks-agent
 kubectl logs deploy/tasks-agent -n tasks-manager --tail=20
 
-# Smoke from your laptop via port-forward
-kubectl port-forward svc/tasks-agent 18080:8000 -n tasks-manager &
+# Pick up the node IP (this dev cluster: 46.225.132.133)
+NODE_IP=$(kubectl get nodes -o jsonpath='{.items[0].status.addresses[?(@.type=="InternalIP")].address}')
+echo "$NODE_IP"
 
-curl -s http://127.0.0.1:18080/healthz
+# Smoke directly against the NodePort
+curl -s http://$NODE_IP:30080/healthz
 # {"status":"ok"}
 
-curl -s -X POST http://127.0.0.1:18080/chat \
+curl -s -X POST http://$NODE_IP:30080/chat \
   -H 'content-type: application/json' \
   -d '{"message":"capture: buy milk on 2026-05-04T17:00:00Z","session_id":"smoke"}'
 
-curl -s -X POST http://127.0.0.1:18080/chat \
+curl -s -X POST http://$NODE_IP:30080/chat \
   -H 'content-type: application/json' \
   -d '{"message":"list my pending tasks","session_id":"smoke"}'
 ```
+
+If your laptop can't reach the node directly, the `kubectl
+port-forward svc/tasks-agent 18080:8000 -n tasks-manager` fallback
+still works against `http://127.0.0.1:18080`.
 
 Expected behaviour:
 - The agent refuses to guess timezones — supply ISO-8601 UTC
@@ -208,10 +219,15 @@ Expected behaviour:
   separate `/readyz` is tracked in issue #1.
 - **No ServiceAccount / RBAC / NetworkPolicy.** Dev cluster only.
   Tracked in issue #2.
-- **Agent entrypoint override.** The image's default `ENTRYPOINT` is
-  the CLI (`tasks-agent`); the Deployment overrides it with
-  `uvicorn tasks_agent.api:app` so the FastAPI surface starts.
-  Folding this back into the Dockerfile is tracked in issue #4.
+- **NodePort exposure.** `tasks-agent` is published on
+  `nodePort: 30080` for dev access without port-forwarding. Production
+  should switch back to `ClusterIP` and front the agent with an
+  Ingress; tracked in issue #2. `tasks-mcp` stays cluster-internal
+  (it is only consumed by `tasks-agent`).
+- **Agent entrypoint.** The image's `ENTRYPOINT` runs `uvicorn
+  tasks_agent.api:app` directly, so no command override in the
+  Deployment. The CLI is still in the venv and reachable via
+  `kubectl debug` or `--entrypoint tasks-agent` when needed.
 
 ---
 
