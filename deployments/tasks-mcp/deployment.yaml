@@ -5,7 +5,6 @@ metadata:
   namespace: tasks-manager
   labels:
     app: tasks-mcp
-    version: "c43a7f8"
 spec:
   replicas: 1
   strategy:
@@ -17,7 +16,6 @@ spec:
     metadata:
       labels:
         app: tasks-mcp
-        version: "c43a7f8"
     spec:
       imagePullSecrets:
         - name: ghcr-pull
@@ -27,8 +25,8 @@ spec:
         fsGroup: 2000
       containers:
         - name: tasks-mcp
-          image: ghcr.io/mjunaidca/ai-native-tasks-manager/tasks-mcp:c43a7f8
-          imagePullPolicy: IfNotPresent
+          image: ghcr.io/mjunaidca/ai-native-tasks-manager/tasks-mcp:latest
+          imagePullPolicy: Always
           ports:
             - name: http
               containerPort: 8000

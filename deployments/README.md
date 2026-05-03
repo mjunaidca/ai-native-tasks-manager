@@ -175,9 +175,12 @@ Expected behaviour:
 - **Single replica, `Recreate` strategy.** `tasks-mcp` keeps state in
   memory and does not coordinate across pods. Lifting this requires
   persistence (out of scope for v1).
-- **Image tags pinned to short SHAs.** No `latest`. CI also publishes
-  `<short-sha>` and semver tags — bump deployments by editing the image
-  tag in the Deployment manifest.
+- **Images use `:latest` with `imagePullPolicy: Always`.** This is a
+  dev cluster — convenience over reproducibility. CI republishes
+  `:latest` (alongside `<short-sha>` and semver tags) on every push to
+  `main`, so a `kubectl rollout restart` after CI is green pulls the
+  new build. For production, switch to pinned SHA tags + `IfNotPresent`
+  before going live.
 - **Read-only root filesystem.** Both containers run as a non-root user
   with `readOnlyRootFilesystem: true` and all capabilities dropped. The
   agent mounts an `emptyDir` at `/tmp` because the OpenAI Agents SDK
@@ -189,6 +192,35 @@ Expected behaviour:
 - **Agent runs `sleep infinity`.** The CLI has no HTTP surface yet, so
   the Deployment shape is a placeholder driven via `kubectl exec`.
   Replaced in issue #4.
+
+---
+
+## Rolling out a new build
+
+After a push to `main` that touches `services/tasks-mcp/**` or
+`services/tasks-agent/**`, the corresponding GitHub Actions workflow
+rebuilds the image and republishes `:latest`. Once the workflow is
+green:
+
+```bash
+# Pick whichever service(s) you rebuilt
+kubectl rollout restart deploy/tasks-mcp   -n tasks-manager
+kubectl rollout restart deploy/tasks-agent -n tasks-manager
+
+# Watch the new pod come up
+kubectl rollout status deploy/tasks-mcp   -n tasks-manager
+kubectl rollout status deploy/tasks-agent -n tasks-manager
+```
+
+Because the manifests use `imagePullPolicy: Always`, the restart
+forces a fresh pull from ghcr — you do not need to edit the manifest.
+
+To confirm which build is running, check the image digest on the pod:
+
+```bash
+kubectl get pod -n tasks-manager -l app=tasks-mcp \
+  -o jsonpath='{.items[0].status.containerStatuses[0].imageID}{"\n"}'
+```
 
 ---
 
