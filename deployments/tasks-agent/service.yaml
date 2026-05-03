@@ -6,7 +6,10 @@ metadata:
   labels:
     app: tasks-agent
 spec:
-  type: ClusterIP
+  # NodePort for dev convenience — reach the agent from the host on
+  # http://<node-ip>:30080. Switch back to ClusterIP (or move behind
+  # an Ingress) before going live; tracked in issue #2.
+  type: NodePort
   selector:
     app: tasks-agent
   ports:
@@ -14,3 +17,4 @@ spec:
       protocol: TCP
       port: 8000
       targetPort: http
+      nodePort: 30080

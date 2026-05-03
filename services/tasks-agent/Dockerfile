@@ -47,4 +47,9 @@ COPY --from=builder --chown=app:app /app/.venv /app/.venv
 
 USER app
 
-ENTRYPOINT ["tasks-agent"]
+EXPOSE 8000
+
+# Default surface is the FastAPI app served by uvicorn. The CLI is still
+# available inside the image and can be invoked explicitly:
+#   docker run --rm -it --entrypoint tasks-agent <image>
+ENTRYPOINT ["uvicorn", "tasks_agent.api:app", "--host", "0.0.0.0", "--port", "8000"]

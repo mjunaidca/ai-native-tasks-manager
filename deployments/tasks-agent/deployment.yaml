@@ -27,14 +27,8 @@ spec:
         - name: tasks-agent
           image: ghcr.io/mjunaidca/ai-native-tasks-manager/tasks-agent:latest
           imagePullPolicy: Always
-          # The image's default ENTRYPOINT is the CLI (`tasks-agent`).
-          # Override with uvicorn to launch the FastAPI surface defined
-          # in tasks_agent.api:app. uvicorn ships via fastapi[standard].
-          command: ["uvicorn"]
-          args:
-            - "tasks_agent.api:app"
-            - "--host=0.0.0.0"
-            - "--port=8000"
+          # No command override — the image's ENTRYPOINT launches
+          # `uvicorn tasks_agent.api:app` on :8000 by default.
           ports:
             - name: http
               containerPort: 8000
