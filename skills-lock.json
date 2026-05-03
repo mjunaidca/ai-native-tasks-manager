@@ -1,6 +1,12 @@
 {
   "version": 1,
   "skills": {
+    "kubernetes-specialist": {
+      "source": "jeffallan/claude-skills",
+      "sourceType": "github",
+      "skillPath": "skills/kubernetes-specialist/SKILL.md",
+      "computedHash": "9c5eb68fc9d553ee29e745258bc6198563158c4b2c57436d63647e61010b5f0a"
+    },
     "mcp-builder": {
       "source": "anthropics/skills",
       "sourceType": "github",
